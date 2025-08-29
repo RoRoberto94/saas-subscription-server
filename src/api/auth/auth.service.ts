@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-
+import jwt from "jsonwebtoken";
 import { prisma } from "../../lib/prisma";
 
 export class AuthService {
@@ -28,5 +28,29 @@ export class AuthService {
 
     const { password: _, ...userWithoutPassword } = user;
     return userWithoutPassword;
+  }
+
+  async loginUser(email: string, password: string) {
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new Error("Invalid credentials.");
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      throw new Error("Invalid credentials.");
+    }
+
+    const token = jwt.sign(
+      { userId: user.id },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "1h" }
+    );
+
+    return { token };
   }
 }
