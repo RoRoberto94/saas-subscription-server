@@ -16,4 +16,19 @@ model User {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  subscription Subscription?
+
+  stripeCustomerId String? @unique
+}
+
+model Subscription {
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  user                 User      @relation(fields: [userId], references: [id])
+  
+  // CPA: Store Stripe IDs to link our data with Stripe's system.
+  stripeSubscriptionId String    @unique
+  stripePriceId        String           
+  stripeCurrentPeriodEnd DateTime       
 }
