@@ -5,7 +5,36 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-04-10",
 });
 
+const plans = [
+  {
+    name: "Basic Plan",
+    price: 10,
+    priceId: "price_1S3B6h31DyGrygnKbVjGXODK",
+    features: [
+      "Manage up to 5 projects",
+      "Basic analytics dashboard",
+      "Email support",
+      "10 GB of storage",
+    ],
+  },
+  {
+    name: "Pro Plan",
+    price: 25,
+    priceId: "price_1S3BJP31DyGrygnKzrFdMcE6",
+    features: [
+      "Unlimited projects",
+      "Advanced analytics & reports",
+      "Priority email & chat support",
+      "100 GB of storage & backup",
+    ],
+  },
+];
+
 export class BillingService {
+  getPlans() {
+    return plans;
+  }
+
   async createCheckoutSession(
     userId: string,
     priceId: string,

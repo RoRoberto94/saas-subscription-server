@@ -8,6 +8,15 @@ interface AuthRequest extends Request {
 const billingService = new BillingService();
 
 export class BillingController {
+  getPlans(req: Request, res: Response) {
+    try {
+      const plans = billingService.getPlans();
+      return res.status(200).json(plans);
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  }
+
   async createCheckoutSession(req: AuthRequest, res: Response) {
     try {
       const userId = req.user?.id;

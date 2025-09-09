@@ -27,6 +27,13 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
       const subscriptionId = session.subscription as string;
       const stripeCustomerId = session.customer as string;
 
+      if (!subscriptionId || !stripeCustomerId) {
+        console.error(
+          "Webhook Error: Missing subscriptionId or customerId in checkout session."
+        );
+        break;
+      }
+
       const subscription = await stripe.subscriptions.retrieve(subscriptionId);
 
       const user = await prisma.user.findFirst({ where: { stripeCustomerId } });
@@ -38,8 +45,19 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
         break;
       }
 
-      await prisma.subscription.create({
-        data: {
+      //Upsert the subscription to handle both creation and updates gracefully.
+      await prisma.subscription.upsert({
+        where: {
+          userId: user.id,
+        },
+        update: {
+          stripeSubscriptionId: subscription.id,
+          stripePriceId: subscription.items.data[0].price.id,
+          stripeCurrentPeriodEnd: new Date(
+            subscription.current_period_end * 1000
+          ),
+        },
+        create: {
           userId: user.id,
           stripeSubscriptionId: subscription.id,
           stripePriceId: subscription.items.data[0].price.id,
@@ -54,6 +72,13 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
     case "invoice.payment_succeeded": {
       const invoice = event.data.object as Stripe.Invoice;
       const subscriptionId = invoice.subscription as string;
+
+      if (!subscriptionId) {
+        console.log(
+          "Webhook Info: Invoice payment succeeded without a subscription ID. Ignoring."
+        );
+        break;
+      }
 
       const subscription = await stripe.subscriptions.retrieve(subscriptionId);
 
