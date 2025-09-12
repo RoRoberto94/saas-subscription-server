@@ -39,4 +39,42 @@ export class BillingController {
       return res.status(500).json({ message: error.message });
     }
   }
+
+  async getSubscription(req: AuthRequest, res: Response) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      const subscription = await billingService.getSubscription(userId);
+
+      if (!subscription) {
+        return res
+          .status(404)
+          .json({ message: "No active subscription found." });
+      }
+
+      return res.status(200).json(subscription);
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  }
+
+  async createCustomerPortalSession(req: AuthRequest, res: Response) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      const { clientUrl } = req.body;
+      if (!clientUrl) {
+        return res.status(400).json({ message: "clientUrl is required." });
+      }
+      const result = await billingService.createCustomerPortalSession(
+        userId,
+        clientUrl
+      );
+      return res.status(200).json(result);
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  }
 }

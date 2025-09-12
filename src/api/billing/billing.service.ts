@@ -67,4 +67,37 @@ export class BillingService {
 
     return { url: session.url };
   }
+
+  async getSubscription(userId: string) {
+    // Fetch user subscription details including the related plan name.
+    const subscription = await prisma.subscription.findUnique({
+      where: { userId },
+    });
+
+    if (!subscription) {
+      return null;
+    }
+
+    const plan = plans.find((p) => p.priceId === subscription.stripePriceId);
+
+    return {
+      ...subscription,
+      planName: plan ? plan.name : "Unknown Plan",
+    };
+  }
+
+  async createCustomerPortalSession(userId: string, clientUrl: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.stripeCustomerId) {
+      throw new Error("Stripe customer not found for this user.");
+    }
+
+    // Generate a Stripe Customer Portal session URL.
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: user.stripeCustomerId,
+      return_url: `${clientUrl}/dashboard`,
+    });
+
+    return { url: portalSession.url };
+  }
 }

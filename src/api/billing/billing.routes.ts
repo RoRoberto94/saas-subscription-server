@@ -14,4 +14,16 @@ billingRouter.post(
   billingController.createCheckoutSession
 );
 
+billingRouter.get(
+  "/subscription",
+  isAuthenticated,
+  billingController.getSubscription
+);
+
+billingRouter.post(
+  "/customer-portal",
+  isAuthenticated,
+  billingController.createCustomerPortalSession
+);
+
 export default billingRouter;
