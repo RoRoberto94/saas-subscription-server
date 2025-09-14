@@ -1,8 +1,11 @@
 import { Router } from "express";
-import { stripeWebhookHandler } from "./stripe.controller";
+import { StripeController } from "./stripe.controller";
 
 const stripeWebhookRouter = Router();
+const stripeController = new StripeController();
 
-stripeWebhookRouter.post("/", stripeWebhookHandler);
+stripeWebhookRouter.post("/", (req, res) =>
+  stripeController.handleWebhook(req, res)
+);
 
 export default stripeWebhookRouter;
