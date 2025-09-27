@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import Stripe from "stripe";
 import { prisma } from "../../lib/prisma";
+import { io } from "../../server";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-04-10",
@@ -22,31 +23,27 @@ export class StripeController {
 
     // Wrap event processing in a try/catch to prevent server crashes
     try {
+      let stripeCustomerId: string | undefined;
+      const eventObject = event.data.object as any;
+      if (eventObject.customer) {
+        stripeCustomerId = eventObject.customer as string;
+      } else if (event.type === "customer.subscription.deleted") {
+        const sub = event.data.object as Stripe.Subscription;
+        stripeCustomerId = sub.customer as string;
+      }
+
+      const user = stripeCustomerId
+        ? await prisma.user.findFirst({ where: { stripeCustomerId } })
+        : null;
+
       switch (event.type) {
         case "checkout.session.completed": {
           const session = event.data.object as Stripe.Checkout.Session;
-
-          const subscriptionId = session.subscription as string;
-          const stripeCustomerId = session.customer as string;
-
-          if (!subscriptionId || !stripeCustomerId) {
-            throw new Error(
-              "Webhook Error: checkout.session.completed event is missing subscription or customer ID."
-            );
-          }
+          if (!user) throw new Error(`Webhook Error: User not found.`);
 
           const subscriptionDetails = await stripe.subscriptions.retrieve(
-            subscriptionId
+            session.subscription as string
           );
-
-          const user = await prisma.user.findFirst({
-            where: { stripeCustomerId },
-          });
-          if (!user) {
-            throw new Error(
-              `Webhook Error: User not found for customer ID: ${stripeCustomerId}`
-            );
-          }
 
           await prisma.subscription.upsert({
             where: { userId: user.id },
@@ -63,62 +60,63 @@ export class StripeController {
               stripeCurrentPeriodEnd: new Date(
                 subscriptionDetails.current_period_end * 1000
               ),
+              cancelAtPeriodEnd: false,
             },
           });
-          console.log(
-            "✅ checkout.session.completed: Subscription created/updated for user:",
-            user.id
-          );
+
+          io.to(user.id).emit("subscription_success");
           break;
         }
 
-        case "customer.subscription.updated":
-        case "customer.subscription.deleted": {
+        case "customer.subscription.updated": {
           const subscription = event.data.object as Stripe.Subscription;
-          const dataToUpdate: {
-            stripePriceId: string;
-            stripeCurrentPeriodEnd?: Date;
-          } = {
-            stripePriceId: subscription.items.data[0].price.id,
-          };
+          if (!user) throw new Error("User not found for subscription update.");
 
-          if (typeof subscription.current_period_end === "number") {
-            dataToUpdate.stripeCurrentPeriodEnd = new Date(
-              subscription.current_period_end * 1000
-            );
-          }
-
-          await prisma.subscription.updateMany({
+          // Use "upsert" to handle subscription updates gracefully, creating the record if it doesn't exist.
+          await prisma.subscription.upsert({
             where: { stripeSubscriptionId: subscription.id },
-            data: dataToUpdate,
+            create: {
+              userId: user.id,
+              stripeSubscriptionId: subscription.id,
+              stripePriceId: subscription.items.data[0].price.id,
+              stripeCurrentPeriodEnd: new Date(
+                (subscription.current_period_end ||
+                  subscription.trial_end ||
+                  Date.now() / 1000 + 86400) * 1000
+              ),
+              cancelAtPeriodEnd: subscription.cancel_at_period_end,
+            },
+            update: {
+              stripePriceId: subscription.items.data[0].price.id,
+              ...(typeof subscription.current_period_end === "number" && {
+                stripeCurrentPeriodEnd: new Date(
+                  subscription.current_period_end * 1000
+                ),
+              }),
+              cancelAtPeriodEnd: subscription.cancel_at_period_end,
+            },
           });
 
-          console.log(
-            `✅ ${event.type}: Subscription data updated for`,
-            subscription.id
-          );
+          if (user) {
+            if (subscription.cancel_at_period_end) {
+              io.to(user.id).emit("subscription_canceled");
+            } else {
+              io.to(user.id).emit("subscription_updated");
+            }
+          }
           break;
         }
 
         case "invoice.payment_succeeded": {
           const invoice = event.data.object as Stripe.Invoice;
-          const subscriptionId = invoice.subscription as string;
-
-          if (!subscriptionId) {
-            console.log(
-              `- Webhook Info: Invoice payment succeeded for one-time charge (ID: ${invoice.id}). No subscription to update.`
-            );
-            break;
-          }
+          if (!invoice.subscription) break;
 
           const subscription = await stripe.subscriptions.retrieve(
-            subscriptionId
+            invoice.subscription as string
           );
 
           await prisma.subscription.update({
-            where: {
-              stripeSubscriptionId: subscription.id,
-            },
+            where: { stripeSubscriptionId: subscription.id },
             data: {
               stripePriceId: subscription.items.data[0].price.id,
               stripeCurrentPeriodEnd: new Date(
@@ -126,11 +124,6 @@ export class StripeController {
               ),
             },
           });
-
-          console.log(
-            `✅ invoice.payment_succeeded: Subscription period updated for`,
-            subscription.id
-          );
           break;
         }
 

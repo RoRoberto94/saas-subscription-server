@@ -31,4 +31,6 @@ model Subscription {
   stripeSubscriptionId String    @unique
   stripePriceId        String           
   stripeCurrentPeriodEnd DateTime       
+
+  cancelAtPeriodEnd Boolean @default(false)
 }
