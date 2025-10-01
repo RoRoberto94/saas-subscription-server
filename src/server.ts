@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import authRouter from "./api/auth/auth.routes";
 import billingRouter from "./api/billing/billing.routes";
 import stripeWebhookRouter from "./api/webhooks/stripe.routes";
+import adminRouter from "./api/admin/admin.routes";
 
 dotenv.config();
 
@@ -46,6 +47,8 @@ io.on("connection", (socket) => {
 app.use("/api/auth", authRouter);
 
 app.use("/api/billing", billingRouter);
+
+app.use("/api/admin", adminRouter);
 
 server.listen(PORT, () => {
   console.log(`🚀 Server with WebSockets is listening on port ${PORT}`);

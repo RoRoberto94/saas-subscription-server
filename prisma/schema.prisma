@@ -7,6 +7,12 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Defines a Role enum for robust, type-safe role management.
+enum Role {
+  USER
+  ADMIN
+}
+
 model User {
   id        String   @id @default(cuid())
 
@@ -16,6 +22,8 @@ model User {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  role      Role     @default(USER)
 
   subscription Subscription?
 
