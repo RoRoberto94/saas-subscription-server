@@ -50,8 +50,10 @@ app.use("/api/billing", billingRouter);
 
 app.use("/api/admin", adminRouter);
 
-server.listen(PORT, () => {
-  console.log(`🚀 Server with WebSockets is listening on port ${PORT}`);
-});
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(`🚀 Server with WebSockets is listening on port ${PORT}`);
+  });
+}
 
-export { io };
+export { app, server, io };
