@@ -64,45 +64,44 @@ export class StripeController {
             },
           });
 
-          io.to(user.id).emit("subscription_success");
+          io.to(user.id).emit("subscription_changed");
+          console.log(
+            "✅ Emitted 'subscription_changed' for new subscription:",
+            user.id
+          );
           break;
         }
 
-        case "customer.subscription.updated": {
+        case "customer.subscription.updated":
+        case "customer.subscription.deleted": {
           const subscription = event.data.object as Stripe.Subscription;
           if (!user) throw new Error("User not found for subscription update.");
 
-          // Use "upsert" to handle subscription updates gracefully, creating the record if it doesn't exist.
-          await prisma.subscription.upsert({
-            where: { stripeSubscriptionId: subscription.id },
-            create: {
-              userId: user.id,
+          await prisma.subscription.updateMany({
+            where: {
               stripeSubscriptionId: subscription.id,
+            },
+            data: {
               stripePriceId: subscription.items.data[0].price.id,
               stripeCurrentPeriodEnd: new Date(
-                (subscription.current_period_end ||
-                  subscription.trial_end ||
-                  Date.now() / 1000 + 86400) * 1000
+                subscription.current_period_end * 1000
               ),
-              cancelAtPeriodEnd: subscription.cancel_at_period_end,
-            },
-            update: {
-              stripePriceId: subscription.items.data[0].price.id,
-              ...(typeof subscription.current_period_end === "number" && {
-                stripeCurrentPeriodEnd: new Date(
-                  subscription.current_period_end * 1000
-                ),
-              }),
               cancelAtPeriodEnd: subscription.cancel_at_period_end,
             },
           });
 
-          if (user) {
-            if (subscription.cancel_at_period_end) {
-              io.to(user.id).emit("subscription_canceled");
-            } else {
-              io.to(user.id).emit("subscription_updated");
-            }
+          if (subscription.cancel_at_period_end) {
+            io.to(user.id).emit("subscription_changed", { status: "canceled" });
+            console.log(
+              "✅ Emitted 'subscription_changed' for canceled subscription:",
+              user.id
+            );
+          } else {
+            io.to(user.id).emit("subscription_changed", { status: "updated" });
+            console.log(
+              "✅ Emitted 'subscription_changed' for updated subscription:",
+              user.id
+            );
           }
           break;
         }
