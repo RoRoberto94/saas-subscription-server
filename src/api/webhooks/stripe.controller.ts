@@ -72,21 +72,22 @@ export class StripeController {
           break;
         }
 
-        case "customer.subscription.updated":
-        case "customer.subscription.deleted": {
+        case "customer.subscription.updated": {
           const subscription = event.data.object as Stripe.Subscription;
           if (!user) throw new Error("User not found for subscription update.");
 
+          // Ensure a valid date is always provided to the database.
+          const periodEnd =
+            typeof subscription.current_period_end === "number"
+              ? new Date(subscription.current_period_end * 1000)
+              : undefined;
+
           await prisma.subscription.updateMany({
-            where: {
-              stripeSubscriptionId: subscription.id,
-            },
+            where: { stripeSubscriptionId: subscription.id },
             data: {
               stripePriceId: subscription.items.data[0].price.id,
-              stripeCurrentPeriodEnd: new Date(
-                subscription.current_period_end * 1000
-              ),
               cancelAtPeriodEnd: subscription.cancel_at_period_end,
+              ...(periodEnd && { stripeCurrentPeriodEnd: periodEnd }),
             },
           });
 
@@ -103,6 +104,24 @@ export class StripeController {
               user.id
             );
           }
+          break;
+        }
+
+        case "customer.subscription.deleted": {
+          const subscription = event.data.object as Stripe.Subscription;
+          if (!user)
+            throw new Error("User not found for subscription deletion.");
+
+          // Handle subscription deletion by removing the record from our database.
+          await prisma.subscription.deleteMany({
+            where: { stripeSubscriptionId: subscription.id },
+          });
+
+          io.to(user.id).emit("subscription_changed", { status: "deleted" });
+          console.log(
+            "✅ Emitted 'subscription_changed' for deleted subscription:",
+            user.id
+          );
           break;
         }
 
