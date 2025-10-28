@@ -86,3 +86,27 @@ A simple diagram of the full application architecture:
     npm run dev
     ```
     The API will be available at `http://localhost:3001`.
+
+---
+
+## 🐳 Running with Docker
+
+This project is fully containerized, allowing you to run the entire back-end stack (Node.js API + PostgreSQL DB) with a single command.
+
+1.  **Prerequisites:**
+
+    - Make sure you have [Docker](https://www.docker.com/products/docker-desktop/) installed and running.
+
+2.  **Build and run the services:**
+
+    ```bash
+    docker-compose up --build
+    ```
+
+3.  **Run migrations inside the container (first time only):**
+    - In a **new terminal**, run the following command to apply the database schema:
+    ```bash
+    docker-compose exec api npx prisma migrate deploy
+    ```
+
+The API will be available at `http://localhost:3001`.
