@@ -1,4 +1,4 @@
-# SubScribe - Full Stack SaaS Subscription App (Server)
+# Subscribe - Full Stack SaaS Subscription App (Server)
 
 This repository contains the **back-end server** for the SubScribe application. It is a robust Node.js API built with Express, TypeScript, and Prisma, designed to handle authentication, billing, and real-time communication.
 
